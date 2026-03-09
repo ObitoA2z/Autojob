@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoJob - Candidature Automatique</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <h1>AutoJob</h1>
+    <div class="status-bar" id="statsBar">
+        <div class="stat-badge"><span class="dot blue"></span> <span id="statTotal">0</span> offres</div>
+        <div class="stat-badge"><span class="dot green"></span> <span id="statApplied">0</span> postulees</div>
+        <div class="stat-badge"><span class="dot orange"></span> <span id="statMatched">0</span> en attente</div>
+        <div class="stat-badge"><span class="dot red"></span> <span id="statErrors">0</span> erreurs</div>
+    </div>
+</div>
+
+<div class="container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <!-- CV Upload -->
+        <section>
+            <h3>Mon CV</h3>
+            <div class="upload-zone" id="uploadZone" onclick="document.getElementById('cvInput').click()">
+                <div class="icon" id="uploadIcon">&#128196;</div>
+                <p id="uploadText">Glissez votre CV ici ou cliquez pour choisir</p>
+                <p style="font-size:11px; margin-top:4px;">PDF uniquement</p>
+            </div>
+            <input type="file" id="cvInput" accept=".pdf" hidden>
+        </section>
+
+        <!-- Search config -->
+        <section>
+            <h3>Recherche</h3>
+            <label>Mots-cles</label>
+            <input type="text" id="keywords" placeholder="ex: developpeur python, data analyst...">
+
+            <label>Localisation</label>
+            <input type="text" id="location" value="France">
+
+            <label>Score minimum (0-1)</label>
+            <input type="number" id="minScore" value="0.5" min="0" max="1" step="0.1">
+
+            <label>Plateformes</label>
+            <div class="platform-toggles" id="platformToggles">
+                <span class="platform-toggle active" data-platform="indeed">Indeed</span>
+                <span class="platform-toggle active" data-platform="hellowork">HelloWork</span>
+                <span class="platform-toggle active" data-platform="linkedin">LinkedIn</span>
+                <span class="platform-toggle active" data-platform="wttj">WTTJ</span>
+                <span class="platform-toggle active" data-platform="apec">APEC</span>
+            </div>
+
+            <div class="checkbox-wrapper">
+                <input type="checkbox" id="autoApply">
+                <label for="autoApply" style="margin:0">Postuler automatiquement</label>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-primary btn-full" onclick="saveProfile()">Sauvegarder</button>
+            </div>
+        </section>
+
+        <!-- Actions -->
+        <section>
+            <h3>Actions</h3>
+            <div class="btn-group" style="flex-direction:column">
+                <button class="btn btn-primary btn-full" id="btnSearch" onclick="startSearch()">
+                    Rechercher des offres
+                </button>
+                <button class="btn btn-success btn-full" id="btnApplyAll" onclick="applyAll()">
+                    Postuler a tout
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Main content -->
+    <div class="main-content">
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="jobs" onclick="switchTab('jobs')">Offres</button>
+            <button class="tab" data-tab="applied" onclick="switchTab('applied')">Postulees</button>
+            <button class="tab" data-tab="logs" onclick="switchTab('logs')">Logs</button>
+        </div>
+
+        <!-- Jobs tab -->
+        <div id="tabJobs" class="tab-content">
+            <div class="jobs-grid" id="jobsList">
+                <div class="empty-state">
+                    <div class="icon">&#128270;</div>
+                    <p>Uploadez votre CV et lancez une recherche pour voir les offres</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Applied tab -->
+        <div id="tabApplied" class="tab-content" style="display:none">
+            <div class="jobs-grid" id="appliedList">
+                <div class="empty-state">
+                    <div class="icon">&#9989;</div>
+                    <p>Les offres auxquelles vous avez postule apparaitront ici</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs tab -->
+        <div id="tabLogs" class="tab-content" style="display:none">
+            <div id="logsList">
+                <div class="empty-state">
+                    <div class="icon">&#128203;</div>
+                    <p>L'historique des candidatures apparaitra ici</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
