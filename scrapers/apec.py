@@ -122,16 +122,34 @@ class ApecScraper(BaseScraper):
                 await page.goto(job_url, wait_until="domcontentloaded", timeout=30000)
                 await page.wait_for_timeout(2000)
 
+                # Dismiss cookie banners
+                for btn_sel in ["button:has-text('Tout accepter')", "button:has-text('Accepter')", "#onetrust-accept-btn-handler"]:
+                    try:
+                        btn = await page.query_selector(btn_sel)
+                        if btn:
+                            await btn.click(timeout=3000)
+                            await page.wait_for_timeout(500)
+                            break
+                    except Exception:
+                        pass
+
                 apply_btn = await page.query_selector(
                     "button:has-text('Postuler'), a:has-text('Postuler'), "
                     "a[class*='apply'], button[class*='apply']"
                 )
 
                 if not apply_btn:
-                    return {"success": False, "message": "Bouton postuler non trouvé sur APEC"}
+                    return {"success": False, "message": "APEC: bouton postuler non trouvé - connexion compte requis"}
 
-                await apply_btn.click()
+                try:
+                    await apply_btn.click(timeout=10000)
+                except Exception:
+                    await apply_btn.evaluate("el => el.click()")
                 await page.wait_for_timeout(3000)
+
+                # Check if APEC requires login
+                if await page.query_selector("input[type='email'], input[type='password'], [class*='login']"):
+                    return {"success": False, "message": "APEC: connexion compte requis pour postuler"}
 
                 file_input = await page.query_selector("input[type='file']")
                 if file_input:

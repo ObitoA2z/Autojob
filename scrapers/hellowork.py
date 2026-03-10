@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from urllib.parse import quote_plus
 import httpx
 from bs4 import BeautifulSoup
@@ -16,6 +17,24 @@ HEADERS = {
     "Sec-Fetch-Mode": "navigate",
     "Sec-Fetch-Site": "none",
 }
+
+BLOCKED_EMAIL_DOMAINS = {"noreply", "no-reply", "donotreply", "hellowork", "welcometothejungle",
+                         "linkedin", "indeed", "apec", "francetravail", "example", "test",
+                         "monster", "jobteaser", "talentsoft"}
+
+
+def _extract_contact_email(html: str) -> str:
+    """Extract a real contact email from page HTML, ignoring placeholder attributes."""
+    # Remove placeholder="..." attributes to avoid false positives
+    clean = re.sub(r'placeholder\s*=\s*"[^"]*"', '', html)
+    clean = re.sub(r"placeholder\s*=\s*'[^']*'", '', clean)
+    # Also strip value="" attributes in input fields
+    clean = re.sub(r'<input[^>]*>', '', clean)
+    emails = re.findall(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", clean)
+    for e in emails:
+        if not any(b in e.lower() for b in BLOCKED_EMAIL_DOMAINS):
+            return e
+    return ""
 
 
 class HelloWorkScraper(BaseScraper):
@@ -39,8 +58,6 @@ class HelloWorkScraper(BaseScraper):
                     break
 
                 soup = BeautifulSoup(resp.text, "html.parser")
-
-                # Find job links (pattern: /fr-fr/emplois/XXXXX.html)
                 links = soup.select("a[href*='/fr-fr/emplois/']")
                 if not links:
                     break
@@ -52,7 +69,6 @@ class HelloWorkScraper(BaseScraper):
                         continue
                     seen.add(href)
 
-                    # Title + company are concatenated in the link text
                     raw_text = link.get_text(strip=True)
                     if not raw_text or len(raw_text) < 3:
                         continue
@@ -60,7 +76,6 @@ class HelloWorkScraper(BaseScraper):
                     if not href.startswith("http"):
                         href = f"{self.BASE_URL}{href}"
 
-                    # Get structured data from detail page (JSON-LD)
                     title = raw_text
                     company = ""
                     description = ""
@@ -71,7 +86,6 @@ class HelloWorkScraper(BaseScraper):
                         detail = await client.get(href)
                         if detail.status_code == 200:
                             dsoup = BeautifulSoup(detail.text, "html.parser")
-                            # Use JSON-LD structured data (most reliable)
                             for script in dsoup.select('script[type="application/ld+json"]'):
                                 try:
                                     ld = json.loads(script.string)
@@ -116,17 +130,101 @@ class HelloWorkScraper(BaseScraper):
         return jobs
 
     async def apply(self, job_url: str, cv_path: str, cover_letter: str = "") -> dict:
+        """
+        Strategy:
+        1. Fetch job page via HTTP - look for contact email (fastest, most reliable)
+        2. If external apply link found - follow it and look for email there
+        3. If HelloWork native form - try browser submit
+        """
+        # Step 1: HTTP fetch - fast, no browser
+        contact_email = ""
+        external_apply_url = ""
+        try:
+            async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=15) as client:
+                resp = await client.get(job_url)
+                if resp.status_code == 200:
+                    html = resp.text
+                    contact_email = _extract_contact_email(html)
+
+                    # Find apply button href (external link)
+                    soup = BeautifulSoup(html, "html.parser")
+                    for btn in soup.select("a[href]"):
+                        text = btn.get_text(strip=True).lower()
+                        href = btn.get("href", "")
+                        if "postul" in text and href.startswith("http") and "hellowork" not in href:
+                            external_apply_url = href
+                            break
+        except Exception:
+            pass
+
+        # If we already have a contact email from the main page
+        if contact_email:
+            return {
+                "success": False,
+                "message": f"Email trouvé: {contact_email}",
+                "contact_email": contact_email,
+            }
+
+        # If external URL - follow it and look for email
+        if external_apply_url:
+            try:
+                async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=15) as client:
+                    ext_resp = await client.get(external_apply_url)
+                    if ext_resp.status_code == 200:
+                        ext_email = _extract_contact_email(ext_resp.text)
+                        if ext_email:
+                            return {
+                                "success": False,
+                                "message": f"Email trouvé sur site employeur: {ext_email}",
+                                "contact_email": ext_email,
+                            }
+            except Exception:
+                pass
+            return {
+                "success": False,
+                "message": f"Redirigé vers site employeur: {external_apply_url[:80]}",
+                "contact_email": "",
+            }
+
+        # Step 2: Browser try (HelloWork native form)
+        try:
+            result = await asyncio.wait_for(
+                self._browser_apply(job_url, cv_path, cover_letter),
+                timeout=45
+            )
+            return result
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"HelloWork: {str(e)[:100]}",
+                "contact_email": contact_email,
+            }
+
+    async def _browser_apply(self, job_url: str, cv_path: str, cover_letter: str) -> dict:
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=False)
+            browser = await p.chromium.launch(headless=True)
             context = await browser.new_context(
                 user_agent=HEADERS["User-Agent"],
                 locale="fr-FR",
+                viewport={"width": 1280, "height": 800},
             )
             page = await context.new_page()
-
+            contact_email = ""
             try:
-                await page.goto(job_url, wait_until="domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(2000)
+                await page.goto(job_url, wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(1000)
+
+                # Remove all overlays via JS
+                await page.evaluate(
+                    "() => {"
+                    "document.querySelectorAll('[class*=\"cookie\"],[class*=\"consent\"],[class*=\"gdpr\"],[id*=\"cookie\"],[class*=\"overlay\"],[class*=\"popup\"]')"
+                    ".forEach(el => { try { el.remove(); } catch(e) {} });"
+                    "document.body.style.overflow = 'auto';"
+                    "}"
+                )
+
+                content = await page.content()
+                contact_email = _extract_contact_email(content)
 
                 apply_btn = await page.query_selector(
                     "a:has-text('Postuler'), button:has-text('Postuler'), "
@@ -134,33 +232,53 @@ class HelloWorkScraper(BaseScraper):
                 )
 
                 if not apply_btn:
-                    return {"success": False, "message": "Bouton postuler non trouvé"}
+                    return {"success": False, "message": "HelloWork: bouton postuler non trouvé", "contact_email": contact_email}
 
-                await apply_btn.click()
-                await page.wait_for_timeout(3000)
+                # Check if external link
+                tag = await apply_btn.evaluate("el => el.tagName")
+                if tag.lower() == "a":
+                    href = await apply_btn.get_attribute("href") or ""
+                    if href and "hellowork" not in href and href.startswith("http"):
+                        try:
+                            async with httpx.AsyncClient(headers=HEADERS, follow_redirects=True, timeout=10) as c:
+                                r = await c.get(href)
+                                ext_email = _extract_contact_email(r.text) if r.status_code == 200 else ""
+                        except Exception:
+                            ext_email = ""
+                        return {"success": False, "message": "Redirigé vers site employeur", "contact_email": ext_email or contact_email}
+
+                # JS click to bypass overlays
+                await apply_btn.evaluate("el => el.click()")
+                await page.wait_for_timeout(2000)
+
+                if "hellowork.com" not in page.url:
+                    try:
+                        ext_email = _extract_contact_email(await page.content())
+                    except Exception:
+                        ext_email = ""
+                    return {"success": False, "message": "Redirigé vers site employeur", "contact_email": ext_email or contact_email}
+
+                if await page.query_selector("input[type='password']"):
+                    return {"success": False, "message": "HelloWork: connexion compte requis", "contact_email": contact_email}
 
                 file_input = await page.query_selector("input[type='file']")
                 if file_input:
                     await file_input.set_input_files(cv_path)
-                    await page.wait_for_timeout(1000)
+                    await page.wait_for_timeout(800)
 
                 if cover_letter:
-                    textarea = await page.query_selector(
-                        "textarea[name*='letter'], textarea[name*='motivation'], textarea[name*='message']"
-                    )
-                    if textarea:
-                        await textarea.fill(cover_letter)
+                    ta = await page.query_selector("textarea")
+                    if ta:
+                        await ta.fill(cover_letter)
 
                 submit_btn = await page.query_selector(
                     "button[type='submit'], button:has-text('Envoyer'), button:has-text('Postuler')"
                 )
                 if submit_btn:
-                    await submit_btn.click()
-                    await page.wait_for_timeout(3000)
+                    await submit_btn.evaluate("el => el.click()")
+                    await page.wait_for_timeout(2000)
                     return {"success": True, "message": "Candidature envoyée via HelloWork"}
 
-                return {"success": False, "message": "Impossible de finaliser la candidature"}
-            except Exception as e:
-                return {"success": False, "message": f"Erreur: {str(e)}"}
+                return {"success": False, "message": "HelloWork: compte requis pour postuler", "contact_email": contact_email}
             finally:
                 await browser.close()

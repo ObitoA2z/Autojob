@@ -40,8 +40,38 @@ class UserProfile(Base):
     location = Column(String(300), default="France")
     min_match_score = Column(Float, default=0.5)
     auto_apply = Column(Boolean, default=False)
-    platforms = Column(Text, default="indeed,hellowork,wttj,apec,linkedin")
+    platforms = Column(Text, default="indeed,hellowork,wttj,apec,linkedin,francetravail")
+    # Infos personnelles pour remplir les formulaires
+    first_name = Column(String(100), default="")
+    last_name = Column(String(100), default="")
+    email = Column(String(200), default="")
+    phone = Column(String(50), default="")
+    city = Column(String(100), default="")
+    linkedin_email = Column(String(200), default="")
+    linkedin_password = Column(String(200), default="")
+    smtp_user = Column(String(200), default="")
+    smtp_password = Column(String(200), default="")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+
+class ProspectContact(Base):
+    __tablename__ = 'prospect_contacts'
+    id = Column(Integer, primary_key=True, index=True)
+    company = Column(String(300), index=True)
+    company_domain = Column(String(200), default='')
+    name = Column(String(300), default='')
+    role = Column(String(300), default='')
+    email = Column(String(200), default='')
+    linkedin_url = Column(String(500), default='')
+    status = Column(String(50), default='new')
+    channel = Column(String(20), default='email')
+    message_subject = Column(Text, default='')
+    message_body = Column(Text, default='')
+    sent_at = Column(DateTime, nullable=True)
+    replied_at = Column(DateTime, nullable=True)
+    notes = Column(Text, default='')
+    created_at = Column(DateTime, default=datetime.utcnow)
 
 
 class ApplicationLog(Base):
