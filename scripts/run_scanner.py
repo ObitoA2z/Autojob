@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 
 from backend.database.session import SessionLocal
 from backend.services.scanner import scan_campaigns

@@ -1,4 +1,4 @@
-﻿# Repository Audit (2026-03-10)
+# Repository Audit (2026-03-10)
 
 ## Summary
 The repository previously implemented an automatic **job application** system for classic job boards. It did not match the requested scope (influencer campaign marketplaces).

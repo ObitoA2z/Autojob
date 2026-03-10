@@ -1,4 +1,4 @@
-﻿"""init schema
+"""init schema
 
 Revision ID: 20260310_0001
 Revises:

@@ -1,4 +1,4 @@
-﻿# AutoInfluence
+# AutoInfluence
 
 Systeme d'automatisation pour postuler a des campagnes d'influence multi-plateformes.
 

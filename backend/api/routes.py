@@ -1,4 +1,4 @@
-﻿from celery.result import AsyncResult
+from celery.result import AsyncResult
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 

@@ -1,3 +1,3 @@
-﻿from backend.api.routes import router
+from backend.api.routes import router
 
 __all__ = ["router"]

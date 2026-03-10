@@ -1,4 +1,4 @@
-﻿from platforms._mock import MockConnectorMixin
+from platforms._mock import MockConnectorMixin
 from platforms.base import CampaignCandidate
 
 

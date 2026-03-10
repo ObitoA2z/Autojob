@@ -1,4 +1,4 @@
-﻿from platforms.aspire import AspireConnector
+from platforms.aspire import AspireConnector
 from platforms.collabstr import CollabstrConnector
 from platforms.modash import ModashConnector
 from platforms.reachr import ReachrConnector

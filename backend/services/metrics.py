@@ -1,4 +1,4 @@
-﻿from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session
 
 from backend.models.application import Application
 from backend.models.campaign import Campaign

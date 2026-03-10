@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 
 from agents.scheduler import run
 

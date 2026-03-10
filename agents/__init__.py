@@ -1,3 +1,3 @@
-﻿from agents.scheduler import run
+from agents.scheduler import run
 
 __all__ = ["run"]
